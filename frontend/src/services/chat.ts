@@ -1,3 +1,5 @@
+import { getRenderWakeupMessage } from './error';
+
 interface ChatStreamHandlers {
   onToken: (token: string) => void;
   onError: (message: string) => void;
@@ -5,6 +7,10 @@ interface ChatStreamHandlers {
 }
 
 const parseErrorResponse = async (response: Response): Promise<string> => {
+  if (response.status === 502 || response.status === 503 || response.status === 504) {
+    return getRenderWakeupMessage();
+  }
+
   try {
     const payload = (await response.json()) as {
       error?: {
@@ -20,6 +26,9 @@ const parseErrorResponse = async (response: Response): Promise<string> => {
 
 export const chatApi = {
   async streamChat(question: string, handlers: ChatStreamHandlers): Promise<void> {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 60000);
+
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api'}/chat`, {
         method: 'POST',
@@ -27,6 +36,7 @@ export const chatApi = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ question }),
+        signal: controller.signal,
       });
 
       if (!response.ok || !response.body) {
@@ -77,7 +87,9 @@ export const chatApi = {
         }
       }
     } catch {
-      handlers.onError('The server is not responding right now. Please try again in a moment.');
+      handlers.onError(getRenderWakeupMessage());
+    } finally {
+      window.clearTimeout(timeout);
     }
   },
 };

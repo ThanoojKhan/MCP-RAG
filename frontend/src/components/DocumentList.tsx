@@ -6,9 +6,10 @@ const pageSize = 6;
 interface DocumentListProps {
   onUploaded: (message: string) => void;
   onError: (message: string) => void;
+  onWakeUpDetected: () => void;
 }
 
-export const DocumentList = ({ onUploaded, onError }: DocumentListProps) => {
+export const DocumentList = ({ onUploaded, onError, onWakeUpDetected }: DocumentListProps) => {
   const [page, setPage] = useState(1);
   const { data, isLoading, isError, error, isFetching } = useDocuments(page, pageSize);
   const retryMutation = useRetryDocument();
@@ -20,6 +21,15 @@ export const DocumentList = ({ onUploaded, onError }: DocumentListProps) => {
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));
   }, [totalPages]);
+
+  useEffect(() => {
+    if (!isLoading && !isFetching) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => onWakeUpDetected(), 3500);
+    return () => window.clearTimeout(timer);
+  }, [isFetching, isLoading, onWakeUpDetected]);
 
   const handleRetry = async (documentId: string) => {
     try {

@@ -10,9 +10,10 @@ const createMessage = (role: ChatMessage['role'], content: string): ChatMessage 
 
 interface ChatWindowProps {
   onError: (message: string) => void;
+  onWakeUpDetected: () => void;
 }
 
-export const ChatWindow = ({ onError }: ChatWindowProps) => {
+export const ChatWindow = ({ onError, onWakeUpDetected }: ChatWindowProps) => {
   const [question, setQuestion] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -29,6 +30,21 @@ export const ChatWindow = ({ onError }: ChatWindowProps) => {
 
     messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
   }, [messages]);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      return;
+    }
+
+    const lastMessage = messages[messages.length - 1];
+
+    if (lastMessage?.role === 'assistant' && lastMessage.content.trim().length > 0) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => onWakeUpDetected(), 3500);
+    return () => window.clearTimeout(timer);
+  }, [isStreaming, messages, onWakeUpDetected]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

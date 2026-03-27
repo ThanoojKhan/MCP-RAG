@@ -7,6 +7,7 @@ export const documentsApi = {
     try {
       const response = await apiClient.get<ApiSuccess<PaginatedDocuments>>('/documents', {
         params: { page, pageSize },
+        timeout: 45000,
       });
       return response.data.data;
     } catch (error) {
@@ -23,6 +24,7 @@ export const documentsApi = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        timeout: 60000,
       });
 
       return response.data.data;
@@ -33,7 +35,9 @@ export const documentsApi = {
 
   async retryDocument(documentId: string): Promise<UploadedDocument> {
     try {
-      const response = await apiClient.post<ApiSuccess<UploadedDocument>>(`/documents/${documentId}/retry`);
+      const response = await apiClient.post<ApiSuccess<UploadedDocument>>(`/documents/${documentId}/retry`, undefined, {
+        timeout: 60000,
+      });
       return response.data.data;
     } catch (error) {
       throw new Error(toUserFacingErrorMessage(error, 'Retry failed. Please try again.'));

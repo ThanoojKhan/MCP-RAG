@@ -1,13 +1,23 @@
 import { useState } from 'react';
+import { BackendWakeupModal } from '../components/BackendWakeupModal';
 import { ChatWindow } from '../components/ChatWindow';
 import { DocumentList } from '../components/DocumentList';
 import { DocumentUpload } from '../components/DocumentUpload';
 
 export const AssistantPage = () => {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isWakeupModalOpen, setIsWakeupModalOpen] = useState(false);
 
   return (
     <main className="relative mx-auto min-h-screen max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <BackendWakeupModal
+        isOpen={isWakeupModalOpen}
+        onReady={() => {
+          setIsWakeupModalOpen(false);
+          setToast({ type: 'success', message: 'Backend is awake and ready again.' });
+        }}
+      />
+
       <section className="mb-6 grid gap-4 lg:grid-cols-[1.4fr,0.9fr]">
         <div className="overflow-hidden rounded-[36px] border border-white/10 bg-[linear-gradient(135deg,rgba(10,16,24,0.96),rgba(20,25,34,0.84)),radial-gradient(circle_at_top_left,rgba(255,196,107,0.18),transparent_30%)] p-6 shadow-panel">
           <div className="flex items-start justify-between gap-4">
@@ -74,16 +84,21 @@ export const AssistantPage = () => {
             <DocumentUpload
               onUploaded={(message) => setToast({ type: 'success', message })}
               onError={(message) => setToast({ type: 'error', message })}
+              onWakeUpDetected={() => setIsWakeupModalOpen((current) => current || true)}
             />
           </div>
         </div>
       </section>
 
       <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.2fr),340px]">
-        <ChatWindow onError={(message) => setToast({ type: 'error', message })} />
+        <ChatWindow
+          onError={(message) => setToast({ type: 'error', message })}
+          onWakeUpDetected={() => setIsWakeupModalOpen((current) => current || true)}
+        />
         <DocumentList
           onUploaded={(message) => setToast({ type: 'success', message })}
           onError={(message) => setToast({ type: 'error', message })}
+          onWakeUpDetected={() => setIsWakeupModalOpen((current) => current || true)}
         />
       </section>
 

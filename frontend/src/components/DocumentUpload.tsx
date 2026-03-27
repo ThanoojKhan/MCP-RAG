@@ -1,15 +1,25 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useUploadDocument } from '../hooks/useDocuments';
 
 interface DocumentUploadProps {
   onUploaded: (message: string) => void;
   onError: (message: string) => void;
+  onWakeUpDetected: () => void;
 }
 
-export const DocumentUpload = ({ onUploaded, onError }: DocumentUploadProps) => {
+export const DocumentUpload = ({ onUploaded, onError, onWakeUpDetected }: DocumentUploadProps) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const uploadMutation = useUploadDocument();
   const [fileName, setFileName] = useState<string>('');
+
+  useEffect(() => {
+    if (!uploadMutation.isPending) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => onWakeUpDetected(), 3500);
+    return () => window.clearTimeout(timer);
+  }, [onWakeUpDetected, uploadMutation.isPending]);
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
