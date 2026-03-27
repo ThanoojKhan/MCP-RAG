@@ -1,13 +1,14 @@
 {
+  "version": 2,
   "functions": {
-    "api/index.ts": {
-      "runtime": "@vercel/node"
+    "api/index.js": {
+      "maxDuration": 30
     }
   },
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/api/index"
+      "destination": "/api/index.js"
     }
   ]
 }
