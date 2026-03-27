@@ -1,0 +1,12 @@
+{
+  "name": "ai-knowledge-assistant",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "install:all": "npm install --workspaces",
+    "build": "npm run build --workspace backend && npm run build --workspace frontend"
+  }
+}
