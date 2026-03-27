@@ -1,12 +1,16 @@
 import { createApp } from './app.js';
-import { bootstrapDatabaseSchema, databaseConnectionInfo, getDatabaseHealth, logger, verifyDatabaseHealth } from './config/database.js';
+import { bootstrapDatabaseSchema, databaseConnectionInfo, getDatabaseHealth, isVercelEnvironment, logger, verifyDatabaseHealth } from './config/database.js';
 import { env } from './config/env.js';
 import { documentsService } from './modules/documents/documents.service.js';
 import { ApiError } from './utils/apiError.js';
 
 const startServer = async () => {
   logger.info({ database: databaseConnectionInfo }, 'Connecting to PostgreSQL');
-  await bootstrapDatabaseSchema();
+
+  if (!isVercelEnvironment) {
+    await bootstrapDatabaseSchema();
+  }
+
   const health = await verifyDatabaseHealth();
 
   if (!health.schemaReady) {
@@ -23,18 +27,22 @@ const startServer = async () => {
     logger.info({ port: env.PORT, database: getDatabaseHealth() }, 'Backend server listening');
   });
 
-  setInterval(() => {
-    void documentsService
-      .retryPendingDocuments()
-      .then(({ processed }) => {
-        if (processed > 0) {
-          logger.info({ processed }, 'Retried pending document embeddings');
-        }
-      })
-      .catch((error) => {
-        logger.error({ error }, 'Background embedding retry failed');
-      });
-  }, env.EMBEDDING_RETRY_INTERVAL_MS);
+  if (!isVercelEnvironment) {
+    setInterval(() => {
+      void documentsService
+        .retryPendingDocuments()
+        .then(({ processed }) => {
+          if (processed > 0) {
+            logger.info({ processed }, 'Retried pending document embeddings');
+          }
+        })
+        .catch((error) => {
+          logger.error({ error }, 'Background embedding retry failed');
+        });
+    }, env.EMBEDDING_RETRY_INTERVAL_MS);
+  } else {
+    logger.info('Running in Vercel environment: skipping startup schema bootstrap and background retry worker');
+  }
 };
 
 void startServer().catch((error) => {
