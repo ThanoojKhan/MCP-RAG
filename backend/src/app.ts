@@ -52,6 +52,16 @@ export const createApp = () => {
   app.use('/api/documents', documentsRouter);
   app.use('/api/chat', chatRouter);
 
+  app.use((_request, response) => {
+    response.status(404).json({
+      success: false,
+      error: {
+        message: 'Route not found',
+        code: 'ROUTE_NOT_FOUND',
+      },
+    });
+  });
+
   app.use(errorMiddleware);
 
   return app;

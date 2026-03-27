@@ -5,16 +5,7 @@ import { logger } from '../backend/src/config/database.js';
 export default async function handler(request: IncomingMessage, response: ServerResponse): Promise<void> {
   try {
     const app = await initializeApplication();
-    await new Promise<void>((resolve, reject) => {
-      app(request, response, (error?: unknown) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-
-        resolve();
-      });
-    });
+    app(request, response);
   } catch (error) {
     logger.error({ error }, 'Vercel function invocation failed');
 
