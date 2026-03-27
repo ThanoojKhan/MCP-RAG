@@ -23,7 +23,7 @@ const resolveSslConfig = (): boolean | { rejectUnauthorized: boolean } => {
 export const logger = pino({
   level: env.LOG_LEVEL,
   transport:
-    env.NODE_ENV === 'development'
+    env.NODE_ENV === 'development' && !isVercelEnvironment
       ? {
           target: 'pino-pretty',
           options: {
