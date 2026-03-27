@@ -1,4 +1,4 @@
-# AI Knowledge Assistant
+ï»¿# AI Knowledge Assistant
 
 Production-grade full-stack RAG application for uploading internal knowledge documents, indexing them with embeddings, retrieving relevant chunks with PostgreSQL `pgvector`, and answering questions through a Gemini-powered chat experience with backend tool calling.
 
@@ -48,34 +48,34 @@ The codebase is organized around clean architecture principles:
 - Gemini API via `@google/genai`
 
 ### Hosting Considerations
-- Local long-running Node server supported
-- Vercel-aware PostgreSQL pool behavior included
-- Background retry worker runs only outside Vercel
+- Standard long-running Node.js backend
+- Shared PostgreSQL connection pool
+- Background retry worker runs inside the backend process
 
 ## Monorepo Layout
 
 ```text
 .
 +- backend/
-¦  +- sql/
-¦  ¦  +- init.sql
-¦  +- src/
-¦     +- ai/
-¦     +- config/
-¦     +- middleware/
-¦     +- modules/
-¦     ¦  +- chat/
-¦     ¦  +- documents/
-¦     +- repositories/
-¦     +- types/
-¦     +- utils/
+Â¦  +- sql/
+Â¦  Â¦  +- init.sql
+Â¦  +- src/
+Â¦     +- ai/
+Â¦     +- config/
+Â¦     +- middleware/
+Â¦     +- modules/
+Â¦     Â¦  +- chat/
+Â¦     Â¦  +- documents/
+Â¦     +- repositories/
+Â¦     +- types/
+Â¦     +- utils/
 +- frontend/
-¦  +- src/
-¦     +- components/
-¦     +- hooks/
-¦     +- pages/
-¦     +- services/
-¦     +- types/
+Â¦  +- src/
+Â¦     +- components/
+Â¦     +- hooks/
+Â¦     +- pages/
+Â¦     +- services/
+Â¦     +- types/
 +- .env.example
 +- README.md
 ```
@@ -226,13 +226,11 @@ Endpoint:
 - `POST /api/documents/:id/retry`
 
 ### Automatic retry
-A background retry loop runs outside Vercel and periodically attempts to process pending documents.
+A background retry loop runs inside the backend process and periodically attempts to process pending documents.
 
 Configured by:
 - `EMBEDDING_RETRY_INTERVAL_MS`
 
-Important:
-- this worker is intentionally skipped on Vercel because serverless runtimes are not suitable for long-running intervals
 
 ## RAG Request Flow
 
@@ -376,15 +374,6 @@ On startup the backend attempts to:
 - create indexes
 - verify schema readiness
 
-### Vercel
-On Vercel the backend:
-- uses a smaller PostgreSQL pool
-- attaches the pool with `@vercel/functions`
-- skips startup schema bootstrap
-- skips background retry interval
-
-This is intentional for serverless safety.
-
 ## Running Locally
 
 Install dependencies from the repo root:
@@ -455,14 +444,6 @@ Pino is used across the backend for:
 
 Development logging is pretty-printed for easier reading.
 
-## Vercel Note
-
-The PostgreSQL connection behavior is Vercel-aware, but the current backend is still a long-running Express server started with `app.listen(...)`.
-
-So:
-- PostgreSQL pooling is more Vercel-friendly
-- full backend deployment as native Vercel serverless functions still requires an additional runtime-entry refactor
-
 ## Common Operational Scenarios
 
 ### 1. Upload succeeds but status is `pending_embeddings`
@@ -483,4 +464,5 @@ Usually means there are no `ready` documents with embeddings yet, or the questio
 2. Add background job infrastructure for production retry orchestration
 3. Add auth and document ownership
 4. Add document search/filter UI in the library
-5. Split backend into a Vercel-compatible handler if full serverless deployment is required
+5. Add a container or traditional Node deployment target for production
+

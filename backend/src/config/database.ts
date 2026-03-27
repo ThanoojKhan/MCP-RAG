@@ -1,4 +1,3 @@
-import { attachDatabasePool } from '@vercel/functions';
 import pino from 'pino';
 import { Pool } from 'pg';
 import { env } from './env.js';
@@ -6,7 +5,6 @@ import { env } from './env.js';
 const databaseUrl = new URL(env.DATABASE_URL);
 const sslMode = databaseUrl.searchParams.get('sslmode');
 const isLocalDatabase = ['localhost', '127.0.0.1'].includes(databaseUrl.hostname);
-export const isVercelEnvironment = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
 
 const resolveSslConfig = (): boolean | { rejectUnauthorized: boolean } => {
   if (sslMode === 'disable') {
@@ -23,7 +21,7 @@ const resolveSslConfig = (): boolean | { rejectUnauthorized: boolean } => {
 export const logger = pino({
   level: env.LOG_LEVEL,
   transport:
-    env.NODE_ENV === 'development' && !isVercelEnvironment
+    env.NODE_ENV === 'development'
       ? {
           target: 'pino-pretty',
           options: {
@@ -38,15 +36,11 @@ export const logger = pino({
 export const database = new Pool({
   connectionString: env.DATABASE_URL,
   ssl: resolveSslConfig(),
-  max: isVercelEnvironment ? 5 : 10,
-  idleTimeoutMillis: isVercelEnvironment ? 5000 : 30000,
+  max: 10,
+  idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
   allowExitOnIdle: true,
 });
-
-if (isVercelEnvironment) {
-  attachDatabasePool(database);
-}
 
 database.on('error', (error) => {
   logger.error({ error }, 'Unexpected PostgreSQL pool error');

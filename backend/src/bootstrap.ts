@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import { createApp } from './app.js';
-import { bootstrapDatabaseSchema, databaseConnectionInfo, getDatabaseHealth, isVercelEnvironment, logger, verifyDatabaseHealth } from './config/database.js';
+import { bootstrapDatabaseSchema, databaseConnectionInfo, getDatabaseHealth, logger, verifyDatabaseHealth } from './config/database.js';
 import { env } from './config/env.js';
 import { documentsService } from './modules/documents/documents.service.js';
 import { ApiError } from './utils/apiError.js';
@@ -9,7 +9,7 @@ let backgroundRetryStarted = false;
 let initializationPromise: Promise<Express> | null = null;
 
 const startBackgroundRetryWorker = (): void => {
-  if (backgroundRetryStarted || isVercelEnvironment) {
+  if (backgroundRetryStarted) {
     return;
   }
 
@@ -37,9 +37,7 @@ export const initializeApplication = async (): Promise<Express> => {
   initializationPromise = (async () => {
     logger.info({ database: databaseConnectionInfo }, 'Connecting to PostgreSQL');
 
-    if (!isVercelEnvironment) {
-      await bootstrapDatabaseSchema();
-    }
+    await bootstrapDatabaseSchema();
 
     const health = await verifyDatabaseHealth();
 
@@ -52,11 +50,7 @@ export const initializeApplication = async (): Promise<Express> => {
       );
     }
 
-    if (!isVercelEnvironment) {
-      startBackgroundRetryWorker();
-    } else {
-      logger.info('Running in Vercel environment: skipping startup schema bootstrap and background retry worker');
-    }
+    startBackgroundRetryWorker();
 
     return createApp();
   })().catch((error) => {
