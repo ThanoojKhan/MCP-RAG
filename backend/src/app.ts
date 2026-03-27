@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { getDatabaseHealth } from './config/database.js';
 import { env } from './config/env.js';
 import { chatRouter } from './modules/chat/chat.routes.js';
 import { documentsRouter } from './modules/documents/documents.routes.js';
@@ -31,7 +32,16 @@ export const createApp = () => {
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
   app.get('/health', (_request, response) => {
-    response.json({ success: true, data: { status: 'ok' } });
+    const database = getDatabaseHealth();
+    const status = database.connected && database.schemaReady ? 'ok' : 'degraded';
+
+    response.status(status === 'ok' ? 200 : 503).json({
+      success: true,
+      data: {
+        status,
+        database,
+      },
+    });
   });
 
   app.use('/api/documents', documentsRouter);

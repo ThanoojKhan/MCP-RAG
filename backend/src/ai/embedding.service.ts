@@ -1,14 +1,17 @@
 import { env } from '../config/env.js';
-import { openAiClient } from './openai.client.js';
+import { geminiClient } from './gemini.client.js';
 
 export const embeddingService = {
   async embedText(input: string): Promise<number[]> {
-    const response = await openAiClient.embeddings.create({
-      model: env.OPENAI_EMBEDDING_MODEL,
-      input,
+    const response = await geminiClient.models.embedContent({
+      model: env.GEMINI_EMBEDDING_MODEL,
+      contents: [input],
+      config: {
+        outputDimensionality: env.GEMINI_EMBEDDING_DIMENSION,
+      },
     });
 
-    return response.data[0]?.embedding ?? [];
+    return response.embeddings?.[0]?.values ?? [];
   },
 
   async embedBatch(inputs: string[]): Promise<number[][]> {
@@ -16,11 +19,14 @@ export const embeddingService = {
       return [];
     }
 
-    const response = await openAiClient.embeddings.create({
-      model: env.OPENAI_EMBEDDING_MODEL,
-      input: inputs,
+    const response = await geminiClient.models.embedContent({
+      model: env.GEMINI_EMBEDDING_MODEL,
+      contents: inputs,
+      config: {
+        outputDimensionality: env.GEMINI_EMBEDDING_DIMENSION,
+      },
     });
 
-    return response.data.map((item) => item.embedding);
+    return response.embeddings?.map((item) => item.values ?? []) ?? [];
   },
 };

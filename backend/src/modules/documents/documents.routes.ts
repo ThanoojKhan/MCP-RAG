@@ -14,4 +14,5 @@ const uploadMiddleware = multer({
 
 documentsRouter.get('/', documentsController.list);
 documentsRouter.get('/:id', documentsController.getById);
+documentsRouter.post('/:id/retry', documentsController.retryEmbeddings);
 documentsRouter.post('/upload', uploadMiddleware.single('file'), documentsController.upload);

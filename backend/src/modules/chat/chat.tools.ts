@@ -49,10 +49,16 @@ export const chatTools = createToolRegistry({
     description: 'List all uploaded documents.',
     parameters: {
       type: 'object',
-      properties: {},
+      properties: {
+        page: { type: 'number', minimum: 1 },
+        pageSize: { type: 'number', minimum: 1, maximum: 20 },
+      },
       additionalProperties: false,
     },
-    inputSchema: z.object({}),
-    execute: async () => documentsService.listDocuments(),
+    inputSchema: z.object({
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(20).default(6),
+    }),
+    execute: async (input: { page: number; pageSize: number }) => documentsService.listDocuments(input.page, input.pageSize),
   },
 });

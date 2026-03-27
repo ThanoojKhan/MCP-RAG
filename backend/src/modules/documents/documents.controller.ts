@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { documentsService, documentIdSchema } from './documents.service.js';
+import { documentsListQuerySchema, documentsService, documentIdSchema } from './documents.service.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { ApiError } from '../../utils/apiError.js';
 
@@ -13,14 +13,21 @@ export const documentsController = {
     response.status(201).json({ success: true, data: document });
   }),
 
-  list: asyncHandler(async (_request: Request, response: Response) => {
-    const documents = await documentsService.listDocuments();
+  list: asyncHandler(async (request: Request, response: Response) => {
+    const { page, pageSize } = documentsListQuerySchema.parse(request.query);
+    const documents = await documentsService.listDocuments(page, pageSize);
     response.json({ success: true, data: documents });
   }),
 
   getById: asyncHandler(async (request: Request, response: Response) => {
     const { id } = documentIdSchema.parse(request.params);
     const document = await documentsService.getDocumentById(id);
+    response.json({ success: true, data: document });
+  }),
+
+  retryEmbeddings: asyncHandler(async (request: Request, response: Response) => {
+    const { id } = documentIdSchema.parse(request.params);
+    const document = await documentsService.retryDocumentEmbeddings(id);
     response.json({ success: true, data: document });
   }),
 };

@@ -12,14 +12,26 @@ export interface ApiErrorResponse {
   };
 }
 
+export type DocumentStatus = 'ready' | 'pending_embeddings';
+
 export interface DocumentItem {
   id: string;
   title: string;
   createdAt: string;
+  status: DocumentStatus;
+}
+
+export interface PaginatedDocuments {
+  items: DocumentItem[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
 }
 
 export interface UploadedDocument extends DocumentItem {
   chunkCount: number;
+  warning?: string;
 }
 
 export interface ChatMessage {

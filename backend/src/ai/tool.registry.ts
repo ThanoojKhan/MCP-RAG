@@ -4,12 +4,9 @@ import { ApiError } from '../utils/apiError.js';
 
 export const createToolRegistry = (registry: ToolRegistry) => ({
   definitions: Object.entries(registry).map(([name, tool]) => ({
-    type: 'function' as const,
-    function: {
-      name,
-      description: tool.description,
-      parameters: tool.parameters,
-    },
+    name,
+    description: tool.description,
+    parameters: tool.parameters,
   })),
 
   async execute(name: string, rawArguments: string): Promise<ToolExecutionResult> {

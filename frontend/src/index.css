@@ -3,20 +3,38 @@
 @tailwind utilities;
 
 :root {
-  color: #121212;
-  background: #f4efe7;
-  font-family: 'Segoe UI', sans-serif;
+  color: #f3efe6;
+  background: #0d1117;
+  font-family: Georgia, serif;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background-image: radial-gradient(circle at top, rgba(199, 91, 57, 0.08), transparent 35%), linear-gradient(135deg, #f8f3ec, #efe4d2 58%, #e8efe7);
+  color: #f3efe6;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(255, 196, 107, 0.16), transparent 24%),
+    radial-gradient(circle at 82% 14%, rgba(77, 180, 151, 0.16), transparent 20%),
+    radial-gradient(circle at 70% 78%, rgba(236, 90, 36, 0.14), transparent 18%),
+    linear-gradient(145deg, #081018, #11161d 45%, #1a1e24 100%);
 }
 
 * {
   box-sizing: border-box;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at center, black 55%, transparent 100%);
 }
 
 #root {

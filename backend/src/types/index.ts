@@ -1,7 +1,22 @@
+export type DocumentStatus = 'ready' | 'pending_embeddings';
+
 export interface DocumentRecord {
   id: string;
   title: string;
   createdAt: string;
+  status: DocumentStatus;
+}
+
+export interface RetryableDocumentRecord extends DocumentRecord {
+  rawContent: string | null;
+}
+
+export interface PaginatedDocuments {
+  items: DocumentRecord[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
 }
 
 export interface DocumentChunkRecord {
@@ -35,12 +50,9 @@ export interface ToolExecutionResult {
 
 export interface ToolRegistryRuntime {
   definitions: Array<{
-    type: 'function';
-    function: {
-      name: string;
-      description: string;
-      parameters: Record<string, unknown>;
-    };
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
   }>;
   execute: (name: string, rawArguments: string) => Promise<ToolExecutionResult>;
 }

@@ -1,10 +1,14 @@
 import type { Response } from 'express';
-import type OpenAI from 'openai';
 import { env } from '../config/env.js';
-import { openAiClient } from './openai.client.js';
-import type { ChatMessage, RetrievedChunk, ToolRegistryRuntime } from '../types/index.js';
+import { geminiClient } from './gemini.client.js';
+import type { RetrievedChunk, ToolRegistryRuntime } from '../types/index.js';
 
 const systemPrompt = `You are AI Knowledge Assistant. Answer using retrieved context when it is relevant. If the answer is missing or ambiguous, say so clearly. Use tools when they can improve factual accuracy or help inspect uploaded documents. Keep answers concise and practical.`;
+
+interface GeminiFunctionCall {
+  name: string;
+  args?: Record<string, unknown>;
+}
 
 const formatContext = (chunks: RetrievedChunk[]): string =>
   chunks
@@ -14,139 +18,129 @@ const formatContext = (chunks: RetrievedChunk[]): string =>
     )
     .join('\n\n');
 
-const toOpenAiMessages = (messages: ChatMessage[]): OpenAI.Chat.Completions.ChatCompletionMessageParam[] =>
-  messages.map((message) => {
-    switch (message.role) {
-      case 'system':
-        return {
-          role: 'system',
-          content: message.content,
-        };
-      case 'user':
-        return {
-          role: 'user',
-          content: message.content,
-        };
-      case 'assistant':
-        return {
-          role: 'assistant',
-          content: message.content,
-          ...(message.toolCalls
-            ? {
-                tool_calls: message.toolCalls.map((toolCall) => ({
-                  id: toolCall.id,
-                  type: 'function' as const,
-                  function: {
-                    name: toolCall.name,
-                    arguments: toolCall.arguments,
-                  },
-                })),
-              }
-            : {}),
-        };
-      case 'tool':
-        return {
-          role: 'tool',
-          content: message.content,
-          tool_call_id: message.toolCallId ?? '',
-        };
-    }
-  });
+const buildPrompt = (question: string, contextChunks: RetrievedChunk[], toolOutputs?: Array<{ tool: string; result: unknown }>): string => {
+  const sections = [
+    systemPrompt,
+    `Retrieved context:\n${formatContext(contextChunks) || 'No context retrieved.'}`,
+    `User question:\n${question}`,
+  ];
 
-const buildSystemMessage = (contextChunks: RetrievedChunk[]): ChatMessage => ({
-  role: 'system',
-  content: `${systemPrompt}\n\nRetrieved context:\n${formatContext(contextChunks) || 'No context retrieved.'}`,
-});
-
-const buildInitialMessages = (question: string, contextChunks: RetrievedChunk[]): ChatMessage[] => [
-  buildSystemMessage(contextChunks),
-  {
-    role: 'user',
-    content: question,
-  },
-];
-
-const executeToolCalls = async (
-  toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[],
-  tools: ToolRegistryRuntime,
-): Promise<ChatMessage[]> => {
-  const messages: ChatMessage[] = [];
-
-  for (const toolCall of toolCalls) {
-    const execution = await tools.execute(toolCall.function.name, toolCall.function.arguments);
-    messages.push({
-      role: 'tool',
-      name: execution.toolName,
-      toolCallId: toolCall.id,
-      content: JSON.stringify(execution.result),
-    });
+  if (toolOutputs?.length) {
+    sections.push(
+      `Tool outputs:\n${toolOutputs.map((entry) => `${entry.tool}: ${JSON.stringify(entry.result)}`).join('\n\n')}`,
+    );
   }
 
-  return messages;
+  return sections.join('\n\n');
 };
 
 const writeSseEvent = (response: Response, payload: Record<string, unknown>): void => {
   response.write(`data: ${JSON.stringify(payload)}\n\n`);
 };
 
-export const ragService = {
-  async runToolSelection(question: string, contextChunks: RetrievedChunk[], tools: ToolRegistryRuntime): Promise<ChatMessage[]> {
-    const messages = buildInitialMessages(question, contextChunks);
-    const response = await openAiClient.chat.completions.create({
-      model: env.OPENAI_CHAT_MODEL,
-      messages: toOpenAiMessages(messages),
-      tools: tools.definitions,
-      tool_choice: 'auto',
-      temperature: 0.2,
-    });
-    const choice = response.choices[0]?.message;
-
-    if (!choice) {
-      return messages;
-    }
-
-    messages.push({
-      role: 'assistant',
-      content: choice.content ?? '',
-      toolCalls: choice.tool_calls?.map((toolCall) => ({
-        id: toolCall.id,
-        name: toolCall.function.name,
-        arguments: toolCall.function.arguments,
-      })),
-    });
-
-    if (!choice.tool_calls?.length) {
-      return messages;
-    }
-
-    const toolMessages = await executeToolCalls(choice.tool_calls, tools);
-    return [...messages, ...toolMessages];
+const toGeminiTools = (tools: ToolRegistryRuntime) => [
+  {
+    functionDeclarations: tools.definitions.map((definition) => ({
+      name: definition.name,
+      description: definition.description,
+      parameters: definition.parameters,
+    })),
   },
+];
 
+const extractFunctionCalls = (response: unknown): GeminiFunctionCall[] => {
+  if (typeof response !== 'object' || response === null || !('functionCalls' in response)) {
+    return [];
+  }
+
+  const functionCalls = (response as { functionCalls?: unknown }).functionCalls;
+
+  if (!Array.isArray(functionCalls)) {
+    return [];
+  }
+
+  return functionCalls.flatMap((entry) => {
+    if (typeof entry !== 'object' || entry === null || !('name' in entry)) {
+      return [];
+    }
+
+    const call = entry as { name?: unknown; args?: unknown };
+
+    if (typeof call.name !== 'string') {
+      return [];
+    }
+
+    return [
+      {
+        name: call.name,
+        args: typeof call.args === 'object' && call.args !== null ? (call.args as Record<string, unknown>) : {},
+      },
+    ];
+  });
+};
+
+const extractText = (response: unknown): string => {
+  if (typeof response !== 'object' || response === null || !('text' in response)) {
+    return '';
+  }
+
+  const text = (response as { text?: unknown }).text;
+  return typeof text === 'string' ? text : '';
+};
+
+export const ragService = {
   async streamAnswer(question: string, contextChunks: RetrievedChunk[], tools: ToolRegistryRuntime, response: Response): Promise<void> {
-    const messages = await this.runToolSelection(question, contextChunks, tools);
+    const prompt = buildPrompt(question, contextChunks);
+    const toolSelection = await geminiClient.models.generateContent({
+      model: env.GEMINI_CHAT_MODEL,
+      contents: prompt,
+      config: {
+        temperature: 0.2,
+        tools: toGeminiTools(tools),
+      },
+    });
+
+    const functionCalls = extractFunctionCalls(toolSelection);
+    const toolOutputs: Array<{ tool: string; result: unknown }> = [];
+
+    for (const functionCall of functionCalls) {
+      const execution = await tools.execute(functionCall.name, JSON.stringify(functionCall.args ?? {}));
+      toolOutputs.push({
+        tool: execution.toolName,
+        result: execution.result,
+      });
+    }
 
     response.setHeader('Content-Type', 'text/event-stream');
     response.setHeader('Cache-Control', 'no-cache, no-transform');
     response.setHeader('Connection', 'keep-alive');
     response.flushHeaders();
 
-    const stream = await openAiClient.chat.completions.create({
-      model: env.OPENAI_CHAT_MODEL,
-      stream: true,
-      temperature: 0.2,
-      messages: toOpenAiMessages([
-        buildSystemMessage(contextChunks),
-        ...messages.filter((message) => message.role !== 'system'),
-      ]),
+    const stream = await geminiClient.models.generateContentStream({
+      model: env.GEMINI_CHAT_MODEL,
+      contents: buildPrompt(question, contextChunks, toolOutputs),
+      config: {
+        temperature: 0.2,
+      },
     });
 
     try {
+      let hasContent = false;
+
       for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content;
+        const content = extractText(chunk);
 
         if (content) {
+          hasContent = true;
           writeSseEvent(response, { type: 'token', content });
+        }
+      }
+
+      if (!hasContent) {
+        const fallbackText = extractText(toolSelection);
+
+        if (fallbackText) {
+          writeSseEvent(response, { type: 'token', content: fallbackText });
         }
       }
 

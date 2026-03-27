@@ -1,19 +1,75 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { database } from '../config/database.js';
-import type { DocumentRecord, DocumentChunkRecord, RetrievedChunk } from '../types/index.js';
+import type { DocumentRecord, DocumentChunkRecord, DocumentStatus, PaginatedDocuments, RetryableDocumentRecord, RetrievedChunk } from '../types/index.js';
 
 const embeddingLiteral = (embedding: number[]): string => `[${embedding.join(',')}]`;
 
 export const documentRepository = {
-  async createDocument(title: string, client?: PoolClient): Promise<DocumentRecord> {
+  async getDocumentByTitle(title: string, client?: PoolClient): Promise<DocumentRecord | null> {
     const executor = client ?? database;
     const result = await executor.query<DocumentRecord>(
-      `INSERT INTO documents (id, title) VALUES ($1, $2) RETURNING id, title, created_at AS "createdAt"`,
-      [randomUUID(), title],
+      `SELECT id, title, status, created_at AS "createdAt" FROM documents WHERE LOWER(title) = LOWER($1) LIMIT 1`,
+      [title],
+    );
+
+    return result.rows[0] ?? null;
+  },
+
+  async createDocument(title: string, status: DocumentStatus, rawContent: string | null, client?: PoolClient): Promise<DocumentRecord> {
+    const executor = client ?? database;
+    const result = await executor.query<DocumentRecord>(
+      `INSERT INTO documents (id, title, status, raw_content) VALUES ($1, $2, $3, $4) RETURNING id, title, status, created_at AS "createdAt"`,
+      [randomUUID(), title, status, rawContent],
     );
 
     return result.rows[0] as DocumentRecord;
+  },
+
+  async updateDocumentStatus(documentId: string, status: DocumentStatus, client?: PoolClient): Promise<void> {
+    const executor = client ?? database;
+    await executor.query(`UPDATE documents SET status = $2 WHERE id = $1`, [documentId, status]);
+  },
+
+  async replacePendingDocumentContent(documentId: string, rawContent: string, client?: PoolClient): Promise<void> {
+    const executor = client ?? database;
+    await executor.query(`UPDATE documents SET status = 'pending_embeddings', raw_content = $2 WHERE id = $1`, [
+      documentId,
+      rawContent,
+    ]);
+  },
+
+  async deleteChunksByDocumentId(documentId: string, client?: PoolClient): Promise<void> {
+    const executor = client ?? database;
+    await executor.query(`DELETE FROM document_chunks WHERE document_id = $1`, [documentId]);
+  },
+
+  async getRetryableDocumentById(documentId: string, client?: PoolClient): Promise<RetryableDocumentRecord | null> {
+    const executor = client ?? database;
+    const result = await executor.query<RetryableDocumentRecord>(
+      `SELECT id, title, status, raw_content AS "rawContent", created_at AS "createdAt" FROM documents WHERE id = $1 LIMIT 1`,
+      [documentId],
+    );
+
+    return result.rows[0] ?? null;
+  },
+
+  async listPendingDocuments(limit: number, client?: PoolClient): Promise<RetryableDocumentRecord[]> {
+    const executor = client ?? database;
+    const result = await executor.query<RetryableDocumentRecord>(
+      `
+        SELECT id, title, status, raw_content AS "rawContent", created_at AS "createdAt"
+        FROM documents
+        WHERE status = 'pending_embeddings'
+          AND raw_content IS NOT NULL
+          AND raw_content <> ''
+        ORDER BY created_at ASC
+        LIMIT $1
+      `,
+      [limit],
+    );
+
+    return result.rows;
   },
 
   async createChunks(documentId: string, chunks: Array<{ content: string; embedding: number[] }>, client?: PoolClient): Promise<void> {
@@ -37,17 +93,30 @@ export const documentRepository = {
     );
   },
 
-  async listDocuments(): Promise<DocumentRecord[]> {
-    const result = await database.query<DocumentRecord>(
-      `SELECT id, title, created_at AS "createdAt" FROM documents ORDER BY created_at DESC`,
-    );
+  async listDocuments(page: number, pageSize: number): Promise<PaginatedDocuments> {
+    const offset = (page - 1) * pageSize;
+    const [itemsResult, totalResult] = await Promise.all([
+      database.query<DocumentRecord>(
+        `SELECT id, title, status, created_at AS "createdAt" FROM documents ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+        [pageSize, offset],
+      ),
+      database.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM documents'),
+    ]);
 
-    return result.rows;
+    const totalItems = Number(totalResult.rows[0]?.count ?? '0');
+
+    return {
+      items: itemsResult.rows,
+      page,
+      pageSize,
+      totalItems,
+      totalPages: Math.max(1, Math.ceil(totalItems / pageSize)),
+    };
   },
 
   async getDocumentById(documentId: string): Promise<DocumentRecord | null> {
     const result = await database.query<DocumentRecord>(
-      `SELECT id, title, created_at AS "createdAt" FROM documents WHERE id = $1 LIMIT 1`,
+      `SELECT id, title, status, created_at AS "createdAt" FROM documents WHERE id = $1 LIMIT 1`,
       [documentId],
     );
 
