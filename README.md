@@ -1,4 +1,4 @@
-﻿# AI Knowledge Assistant
+﻿# AI Knowledge Assistant (https://mcp-rag-frontend.vercel.app/)
 
 Production-grade full-stack RAG application for uploading internal knowledge documents, indexing them with embeddings, retrieving relevant chunks with PostgreSQL `pgvector`, and answering questions through a Gemini-powered chat experience with backend tool calling.
 
