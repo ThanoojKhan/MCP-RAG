@@ -1,13 +1,18 @@
 import cors from 'cors';
 import express from 'express';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import helmetModule from 'helmet';
+import rateLimitModule from 'express-rate-limit';
 import { getDatabaseHealth } from './config/database.js';
 import { env } from './config/env.js';
 import { chatRouter } from './modules/chat/chat.routes.js';
 import { documentsRouter } from './modules/documents/documents.routes.js';
 import { errorMiddleware } from './middleware/error.middleware.js';
 import { requestLoggerMiddleware } from './middleware/requestLogger.middleware.js';
+
+const helmet = ('default' in helmetModule ? helmetModule.default : helmetModule) as typeof import('helmet').default;
+const rateLimit = ('default' in rateLimitModule
+  ? rateLimitModule.default
+  : rateLimitModule) as typeof import('express-rate-limit').default;
 
 export const createApp = () => {
   const app = express();
