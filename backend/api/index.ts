@@ -1,13 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { initializeApplication } from '../backend/src/bootstrap.js';
-import { logger } from '../backend/src/config/database.js';
 
 export default async function handler(request: IncomingMessage, response: ServerResponse): Promise<void> {
   try {
+    const [{ initializeApplication }] = await Promise.all([import('../src/bootstrap.js')]);
+
     const app = await initializeApplication();
     app(request, response);
   } catch (error) {
-    logger.error({ error }, 'Vercel function invocation failed');
+    console.error('Vercel function invocation failed', error);
 
     if (!response.headersSent) {
       response.statusCode = 500;
@@ -16,7 +16,7 @@ export default async function handler(request: IncomingMessage, response: Server
         JSON.stringify({
           success: false,
           error: {
-            message: 'Internal server error',
+            message: error instanceof Error ? error.message : 'Internal server error',
             code: 'FUNCTION_INVOCATION_FAILED',
           },
         }),
