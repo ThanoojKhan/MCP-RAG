@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDocuments, useRetryDocument } from '../hooks/useDocuments';
+import { isLikelyServerWakeUp } from '../services/error';
 
 const pageSize = 6;
 
@@ -23,13 +24,12 @@ export const DocumentList = ({ onUploaded, onError, onWakeUpDetected }: Document
   }, [totalPages]);
 
   useEffect(() => {
-    if (!isLoading && !isFetching) {
+    if (!isError || !isLikelyServerWakeUp(error)) {
       return;
     }
 
-    const timer = window.setTimeout(() => onWakeUpDetected(), 3500);
-    return () => window.clearTimeout(timer);
-  }, [isFetching, isLoading, onWakeUpDetected]);
+    onWakeUpDetected();
+  }, [error, isError, onWakeUpDetected]);
 
   const handleRetry = async (documentId: string) => {
     try {

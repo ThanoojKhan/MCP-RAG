@@ -21,9 +21,6 @@ export const documentsApi = {
 
     try {
       const response = await apiClient.post<ApiSuccess<UploadedDocument>>('/documents/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
         timeout: 60000,
       });
 

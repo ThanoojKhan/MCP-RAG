@@ -28,6 +28,7 @@ export const chatApi = {
   async streamChat(question: string, handlers: ChatStreamHandlers): Promise<void> {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 60000);
+    let completed = false;
 
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api'}/chat`, {
@@ -53,7 +54,9 @@ export const chatApi = {
         const { done, value } = await reader.read();
 
         if (done) {
-          handlers.onDone();
+          if (!completed) {
+            handlers.onDone();
+          }
           break;
         }
 
@@ -78,10 +81,12 @@ export const chatApi = {
           }
 
           if (payload.type === 'error') {
+            completed = true;
             handlers.onError(payload.message ?? 'Streaming failed');
           }
 
           if (payload.type === 'done') {
+            completed = true;
             handlers.onDone();
           }
         }

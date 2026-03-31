@@ -4,6 +4,7 @@ import { documentRepository } from '../../repositories/document.repository.js';
 import { embeddingService } from '../../ai/embedding.service.js';
 import { documentChunker } from './document-chunker.js';
 import { logger } from '../../config/database.js';
+import { env } from '../../config/env.js';
 import { ApiError } from '../../utils/apiError.js';
 import type { ChunkInput, EmbeddingProvider, TextChunker } from '../../types/index.js';
 
@@ -65,6 +66,21 @@ const toChunkInputs = (chunks: string[], embeddings: number[][]): ChunkInput[] =
     embedding: embeddings[index] ?? [],
   }));
 
+const assertEmbeddingBatchShape = (chunks: string[], embeddings: number[][], expectedDimension: number): void => {
+  if (embeddings.length !== chunks.length) {
+    throw new ApiError(502, 'Embedding provider returned an unexpected number of embeddings', 'INVALID_EMBEDDING_BATCH');
+  }
+
+  const invalidEmbedding = embeddings.find((embedding) => embedding.length !== expectedDimension);
+
+  if (invalidEmbedding) {
+    throw new ApiError(502, 'Embedding provider returned an embedding with an unexpected dimension', 'INVALID_EMBEDDING_DIMENSION', {
+      expectedDimension,
+      actualDimension: invalidEmbedding.length,
+    });
+  }
+};
+
 const isEmbeddingProviderUnavailable = (error: unknown): boolean =>
   typeof error === 'object' &&
   error !== null &&
@@ -95,6 +111,7 @@ export const createDocumentsService = ({ repository, embeddings, chunker }: Docu
     }
 
     const vectorEmbeddings = await embeddings.embedBatch(chunks);
+    assertEmbeddingBatchShape(chunks, vectorEmbeddings, env.GEMINI_EMBEDDING_DIMENSION);
 
     await repository.withTransaction(async (client) => {
       await repository.createChunks(documentId, toChunkInputs(chunks, vectorEmbeddings), client);

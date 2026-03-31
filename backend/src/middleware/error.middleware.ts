@@ -27,6 +27,11 @@ const isAiProviderError = (error: unknown): error is AiProviderError =>
   typeof error === 'object' && error !== null && 'status' in error;
 
 export const errorMiddleware = (error: unknown, _request: Request, response: Response, _next: NextFunction): void => {
+  if (response.headersSent) {
+    logger.error({ error }, 'Unhandled error after response headers were sent');
+    return;
+  }
+
   if (error instanceof ZodError) {
     response.status(400).json({
       success: false,
